@@ -393,7 +393,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 font-sans p-2 sm:p-4 md:p-8 selection:bg-indigo-500/30 relative">
+    <div translate="no" className="notranslate min-h-screen bg-gray-950 text-gray-100 font-sans p-2 sm:p-4 md:p-8 selection:bg-indigo-500/30 relative">
       <style>{`
         .custom-scrollbar::-webkit-scrollbar {
           height: 6px;
