@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Square, Download, Settings, Shuffle, Volume2, VolumeX, X } from 'lucide-react';
+import { Play, Square, Download, Settings, Shuffle, Volume2, VolumeX, X, Navigation } from 'lucide-react';
 
 // --- インストゥルメント設定 ---
 const INSTRUMENTS = [
@@ -37,59 +37,59 @@ const noteNameToMidi = (name) => {
   return (midi >= 0 && midi <= 127) ? midi : null;
 };
 
-// --- プリセットパターン (16ステップ) ---
-const createEmptyGrid = () => Array(8).fill().map(() => Array(16).fill(false));
+// --- プリセットパターン (32ステップ = 2小節) ---
+const createEmptyGrid = () => Array(8).fill().map(() => Array(32).fill(false));
 
 const PRESETS = {
   'Basic 1 (8 Beat)': [
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
-    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // CLOSED HI-HAT
-    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
-    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], // KICK
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
+    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0,  1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // CLOSED HI-HAT
+    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
+    [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,  1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0], // KICK
   ],
   'Basic 2 (16 Beat)': [
-    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
-    [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], // CLOSED HI-HAT
-    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
-    [1,0,0,1, 0,0,0,0, 1,0,1,0, 0,0,0,0], // KICK
+    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
+    [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1,  1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1], // CLOSED HI-HAT
+    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
+    [1,0,0,1, 0,0,0,0, 1,0,1,0, 0,0,0,0,  1,0,0,1, 0,0,0,0, 1,0,1,0, 0,0,0,0], // KICK
   ],
   'House': [
-    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
-    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // OPEN HI-HAT
-    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // CLOSED HI-HAT
-    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
-    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // KICK
+    [1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
+    [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0,  0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0], // OPEN HI-HAT
+    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0,  1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // CLOSED HI-HAT
+    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
+    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0,  1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // KICK
   ],
   'Hip Hop': [
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0], // OPEN HI-HAT
-    [1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,0,0], // CLOSED HI-HAT
-    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
-    [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,0], // KICK
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,1,0], // OPEN HI-HAT
+    [1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,0,0,  1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,0,0], // CLOSED HI-HAT
+    [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,  0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0], // SNARE
+    [1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,0,  1,0,0,0, 0,0,1,0, 0,1,0,0, 0,0,0,0], // KICK
   ],
   'Reggaeton': [
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
-    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
-    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // CLOSED HI-HAT
-    [0,0,0,1, 0,0,1,0, 0,0,0,1, 0,0,1,0], // SNARE
-    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // KICK
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // CRASH
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // HIGH TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // MID TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // LOW TOM
+    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,  0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0], // OPEN HI-HAT
+    [1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0,  1,0,1,0, 1,0,1,0, 1,0,1,0, 1,0,1,0], // CLOSED HI-HAT
+    [0,0,0,1, 0,0,1,0, 0,0,0,1, 0,0,1,0,  0,0,0,1, 0,0,1,0, 0,0,0,1, 0,0,1,0], // SNARE
+    [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0,  1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0], // KICK
   ]
 };
 
@@ -110,7 +110,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState('Basic 1 (8 Beat)');
   const [tempMidiMap, setTempMidiMap] = useState([]);
-  const [showNotification, setShowNotification] = useState(false);
+  const [isAutoScroll, setIsAutoScroll] = useState(true);
 
   const openSettings = () => {
     setTempMidiMap(midiMap.map(midiToNoteName));
@@ -124,6 +124,8 @@ export default function App() {
   const timerIDRef = useRef(null);
   const nextNoteTimeRef = useRef(0);
   const currentStepRef = useRef(0);
+  const scrollContainerRef = useRef(null);
+  const stepRefs = useRef([]);
   
   // Reactの状態をrefに同期（スケジューラ内で最新の値にアクセスするため）
   const stateRef = useRef({ grid, bpm, trackVolumes, trackMutes });
@@ -301,7 +303,7 @@ export default function App() {
   const nextNote = useCallback(() => {
     const secondsPerBeat = 60.0 / stateRef.current.bpm;
     nextNoteTimeRef.current += 0.25 * secondsPerBeat; // 16th note
-    currentStepRef.current = (currentStepRef.current + 1) % 16;
+    currentStepRef.current = (currentStepRef.current + 1) % 32; // 32 steps (2 measures)
   }, []);
 
   const scheduleNote = useCallback((stepNumber, time) => {
@@ -344,6 +346,25 @@ export default function App() {
     return () => clearTimeout(timerIDRef.current);
   }, [isPlaying, scheduler]);
 
+  // --- オートスクロール制御 ---
+  useEffect(() => {
+    if (isPlaying && isAutoScroll && scrollContainerRef.current && stepRefs.current[currentStep]) {
+      const container = scrollContainerRef.current;
+      const stepEl = stepRefs.current[currentStep];
+      
+      const containerRect = container.getBoundingClientRect();
+      const stepRect = stepEl.getBoundingClientRect();
+      
+      // 現在のステップがコンテナの中央にくるようにスクロール位置を計算
+      const scrollPos = container.scrollLeft + (stepRect.left - containerRect.left) - (container.clientWidth / 2) + (stepRect.width / 2);
+
+      container.scrollTo({
+        left: scrollPos,
+        behavior: 'smooth'
+      });
+    }
+  }, [currentStep, isPlaying, isAutoScroll]);
+
   // --- アクションハンドラ ---
   const toggleStep = (instIndex, stepIndex) => {
     const newGrid = [...grid];
@@ -364,20 +385,20 @@ export default function App() {
   };
 
   const generateRandomPattern = () => {
-    const newGrid = createEmptyGrid();
-    for (let i = 0; i < 8; i++) {
-      for (let j = 0; j < 16; j++) {
-        // クラッシュは少なめ、キック・スネア・ハットは多め等の確率調整
-        let probability = 0.15;
-        if (i === 0) probability = 0.05; // CRASH
-        if (i >= 4) probability = 0.25;  // HATS, SNARE, KICK
-        if (Math.random() < probability) {
-          newGrid[i][j] = true;
-        }
+    const presetNames = Object.keys(PRESETS);
+    let randomPresetName = selectedPreset;
+    
+    // 現在選択されているプリセットと被らないようにランダム選択
+    if (presetNames.length > 1) {
+      while (randomPresetName === selectedPreset || randomPresetName === 'custom') {
+        randomPresetName = presetNames[Math.floor(Math.random() * presetNames.length)];
       }
+    } else {
+      randomPresetName = presetNames[0];
     }
-    setGrid(newGrid);
-    setSelectedPreset('custom');
+
+    setSelectedPreset(randomPresetName);
+    setGrid(mapPresetToGrid(PRESETS[randomPresetName]));
   };
 
   const clearGrid = () => {
@@ -385,11 +406,62 @@ export default function App() {
     setSelectedPreset('custom');
   };
 
-  // --- MIDIダウンロード (プレビュー環境制限対応) ---
-  const downloadMIDI = () => {
-    // プレビュー環境での外部ライブラリ読み込みクラッシュを防ぐため、UI上のメッセージに変更
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 5000);
+  // --- MIDIダウンロード ---
+  const downloadMIDI = async () => {
+    // 外部ライブラリを動的に読み込む
+    if (!window.MidiWriter) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      } catch (e) {
+        alert("MIDIエクスポート用のライブラリの読み込みに失敗しました。");
+        return;
+      }
+    }
+
+    const track = new window.MidiWriter.Track();
+    track.setTimeSignature(4, 4);
+    track.setTempo(bpm);
+
+    let waitSteps = 0;
+    for (let step = 0; step < 32; step++) {
+      let pitches = [];
+      for (let inst = 0; inst < 8; inst++) {
+        if (grid[inst][step]) {
+          pitches.push(midiMap[inst]);
+        }
+      }
+
+      if (pitches.length > 0) {
+        let waitStr = waitSteps > 0 ? `T${waitSteps * 32}` : 0; // 16分音符 = 32ティック
+        const note = new window.MidiWriter.NoteEvent({
+          pitch: pitches,
+          duration: '16',
+          wait: waitStr,
+          channel: 10, // ドラムチャンネル
+          velocity: 100
+        });
+        track.addEvent(note);
+        waitSteps = 0;
+      } else {
+        waitSteps++;
+      }
+    }
+
+    const write = new window.MidiWriter.Writer(track);
+    const dataUri = write.dataUri();
+    
+    const link = document.createElement('a');
+    link.href = dataUri;
+    link.download = `drum-pattern-${bpm}bpm.mid`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -410,16 +482,6 @@ export default function App() {
           background: rgba(79, 70, 229, 0.8);
         }
       `}</style>
-
-      {/* 通知ポップアップ */}
-      {showNotification && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-indigo-600 text-white px-6 py-3 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-          <span>MIDI export requires an external library which is disabled in this preview environment for security reasons.</span>
-          <button onClick={() => setShowNotification(false)} className="text-white/80 hover:text-white">
-            <X size={16} />
-          </button>
-        </div>
-      )}
 
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         
@@ -501,6 +563,17 @@ export default function App() {
             >
               Clear
             </button>
+            <button
+              onClick={() => setIsAutoScroll(!isAutoScroll)}
+              className={`flex items-center justify-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-colors border ${
+                isAutoScroll 
+                  ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30 hover:bg-indigo-600/30' 
+                  : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700 hover:text-gray-300'
+              } flex-1 sm:flex-none`}
+            >
+              <Navigation size={14} className="md:w-4 md:h-4" /> 
+              <span className="hidden xs:inline">Auto Scroll</span>
+            </button>
           </div>
 
           <div className="flex items-center justify-center gap-2 md:gap-3 w-full sm:w-auto">
@@ -520,12 +593,19 @@ export default function App() {
         </div>
 
         {/* シーケンサーグリッド */}
-        <div className="bg-gray-900 rounded-2xl p-2 sm:p-4 md:p-6 shadow-xl border border-gray-800 overflow-x-auto custom-scrollbar">
-          <div className="min-w-[500px] sm:min-w-[650px] md:min-w-[800px]">
+        <div 
+          ref={scrollContainerRef}
+          className="bg-gray-900 rounded-2xl p-2 sm:p-4 md:p-6 shadow-xl border border-gray-800 overflow-x-auto custom-scrollbar"
+        >
+          <div className="min-w-[900px] sm:min-w-[1200px] md:min-w-[1500px]">
             {/* ステップインジケーター */}
             <div className="flex mb-2 md:mb-4 pl-[90px] sm:pl-[140px] md:pl-[220px]">
-              {Array(16).fill().map((_, i) => (
-                <div key={i} className="flex-1 flex justify-center">
+              {Array(32).fill().map((_, i) => (
+                <div 
+                  key={i} 
+                  ref={el => stepRefs.current[i] = el}
+                  className={`flex-1 flex justify-center ${i === 16 ? 'ml-3 sm:ml-5 md:ml-6' : ''}`}
+                >
                   <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full transition-all duration-75 ${i === currentStep && isPlaying ? 'bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)]' : 'bg-gray-800'}`}></div>
                 </div>
               ))}
@@ -570,7 +650,7 @@ export default function App() {
 
                   {/* ステップボタン */}
                   <div className="flex-1 flex gap-0.5 sm:gap-1">
-                    {Array(16).fill().map((_, colIdx) => {
+                    {Array(32).fill().map((_, colIdx) => {
                       const isActive = grid[rowIdx][colIdx];
                       const isCurrentStep = colIdx === currentStep && isPlaying;
                       const isBeatStart = colIdx % 4 === 0;
@@ -585,7 +665,7 @@ export default function App() {
                               : `bg-gray-900 ${isBeatStart ? 'border-gray-700' : 'border-gray-800'} hover:bg-gray-800`
                           } ${
                             isCurrentStep ? (isActive ? 'brightness-125 scale-105' : 'bg-gray-700 border-gray-600') : ''
-                          }`}
+                          } ${colIdx === 16 ? 'ml-3 sm:ml-5 md:ml-6' : ''}`}
                         >
                            {/* アクセントカラーインジケーター (アクティブ時) */}
                            {isActive && <div className="absolute inset-0 bg-white/20 rounded sm:rounded-md mix-blend-overlay"></div>}
