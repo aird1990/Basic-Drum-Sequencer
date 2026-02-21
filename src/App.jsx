@@ -111,6 +111,7 @@ export default function App() {
   const [selectedPreset, setSelectedPreset] = useState('Basic 1 (8 Beat)');
   const [tempMidiMap, setTempMidiMap] = useState([]);
   const [isAutoScroll, setIsAutoScroll] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   const openSettings = () => {
     setTempMidiMap(midiMap.map(midiToNoteName));
@@ -406,62 +407,91 @@ export default function App() {
     setSelectedPreset('custom');
   };
 
-  // --- MIDIダウンロード ---
+  // --- MIDIダウンロード (Blobを利用した堅牢な方式) ---
   const downloadMIDI = async () => {
-    // 外部ライブラリを動的に読み込む
-    if (!window.MidiWriter) {
-      try {
-        await new Promise((resolve, reject) => {
+    if (isExporting) return;
+    setIsExporting(true);
+
+    try {
+      // 外部ライブラリを動的に読み込む（失敗時のフォールバック付き）
+      if (!window.MidiWriter) {
+        const loadScript = (src) => new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js';
+          script.src = src;
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
         });
-      } catch (e) {
-        alert("MIDIエクスポート用のライブラリの読み込みに失敗しました。");
-        return;
-      }
-    }
 
-    const track = new window.MidiWriter.Track();
-    track.setTimeSignature(4, 4);
-    track.setTempo(bpm);
-
-    let waitSteps = 0;
-    for (let step = 0; step < 32; step++) {
-      let pitches = [];
-      for (let inst = 0; inst < 8; inst++) {
-        if (grid[inst][step]) {
-          pitches.push(midiMap[inst]);
+        try {
+          await loadScript('https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js');
+        } catch (err) {
+          console.warn("Primary CDN failed, trying fallback...");
+          await loadScript('https://unpkg.com/midi-writer-js@2.1.4/build/index.browser.min.js');
         }
       }
 
-      if (pitches.length > 0) {
-        let waitStr = waitSteps > 0 ? `T${waitSteps * 32}` : 0; // 16分音符 = 32ティック
-        const note = new window.MidiWriter.NoteEvent({
-          pitch: pitches,
-          duration: '16',
-          wait: waitStr,
-          channel: 10, // ドラムチャンネル
-          velocity: 100
-        });
-        track.addEvent(note);
-        waitSteps = 0;
-      } else {
-        waitSteps++;
-      }
-    }
+      const track = new window.MidiWriter.Track();
+      track.setTimeSignature(4, 4);
+      track.setTempo(bpm);
 
-    const write = new window.MidiWriter.Writer(track);
-    const dataUri = write.dataUri();
-    
-    const link = document.createElement('a');
-    link.href = dataUri;
-    link.download = `drum-pattern-${bpm}bpm.mid`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      let waitSteps = 0;
+      for (let step = 0; step < 32; step++) {
+        let pitches = [];
+        for (let inst = 0; inst < 8; inst++) {
+          if (grid[inst][step]) {
+            pitches.push(midiMap[inst]);
+          }
+        }
+
+        if (pitches.length > 0) {
+          let waitStr = waitSteps > 0 ? `T${waitSteps * 32}` : 0; // 16分音符 = 32ティック
+          const note = new window.MidiWriter.NoteEvent({
+            pitch: pitches,
+            duration: '16',
+            wait: waitStr,
+            channel: 10, // ドラムチャンネル
+            velocity: 100
+          });
+          track.addEvent(note);
+          waitSteps = 0;
+        } else {
+          waitSteps++;
+        }
+      }
+
+      const write = new window.MidiWriter.Writer(track);
+      const dataUri = write.dataUri();
+      
+      // Data URIからBlob（バイナリデータ）への変換処理
+      // （ブラウザのセキュリティによる「Data URIの直接ダウンロードブロック」を回避するため）
+      const base64Data = dataUri.split(',')[1];
+      const binaryData = atob(base64Data);
+      const uint8Array = new Uint8Array(binaryData.length);
+      for (let i = 0; i < binaryData.length; i++) {
+        uint8Array[i] = binaryData.charCodeAt(i);
+      }
+      
+      const blob = new Blob([uint8Array], { type: 'audio/midi' });
+      const blobUrl = URL.createObjectURL(blob);
+      
+      // ダウンロードの実行
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `drum-pattern-${bpm}bpm.mid`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // メモリ解放
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+
+    } catch (e) {
+      console.error("MIDI Export Error:", e);
+      alert("MIDIエクスポートに失敗しました。通信環境やブラウザの設定をご確認ください。");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -579,9 +609,15 @@ export default function App() {
           <div className="flex items-center justify-center gap-2 md:gap-3 w-full sm:w-auto">
             <button
               onClick={downloadMIDI}
-              className="flex items-center justify-center gap-1 md:gap-2 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-all flex-1 sm:flex-none"
+              disabled={isExporting}
+              className={`flex items-center justify-center gap-1 md:gap-2 px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm transition-all flex-1 sm:flex-none ${
+                isExporting 
+                  ? 'bg-emerald-600/30 text-emerald-500 cursor-wait border border-emerald-500/20'
+                  : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30'
+              }`}
             >
-              <Download size={14} className="md:w-4 md:h-4" /> <span className="whitespace-nowrap">Export MIDI</span>
+              <Download size={14} className={`md:w-4 md:h-4 ${isExporting ? 'animate-bounce' : ''}`} /> 
+              <span className="whitespace-nowrap">{isExporting ? 'Exporting...' : 'Export MIDI'}</span>
             </button>
             <button
               onClick={openSettings}
