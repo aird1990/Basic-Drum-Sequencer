@@ -407,31 +407,26 @@ export default function App() {
     setSelectedPreset('custom');
   };
 
-  // --- MIDIダウンロード (Blobを利用した堅牢な方式) ---
+  // --- MIDIダウンロード (MidiWriterJSを直接インポートする方式) ---
   const downloadMIDI = async () => {
     if (isExporting) return;
     setIsExporting(true);
 
     try {
-      // 外部ライブラリを動的に読み込む（失敗時のフォールバック付き）
       if (!window.MidiWriter) {
-        const loadScript = (src) => new Promise((resolve, reject) => {
+        await new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = src;
+          script.src = 'https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js';
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
         });
-
-        try {
-          await loadScript('https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js');
-        } catch (err) {
-          console.warn("Primary CDN failed, trying fallback...");
-          await loadScript('https://unpkg.com/midi-writer-js@2.1.4/build/index.browser.min.js');
-        }
       }
 
-      const track = new window.MidiWriter.Track();
+      const MidiWriter = window.MidiWriter;
+      if (!MidiWriter) throw new Error("MidiWriter could not be loaded.");
+
+      const track = new MidiWriter.Track();
       track.setTimeSignature(4, 4);
       track.setTempo(bpm);
 
@@ -440,19 +435,25 @@ export default function App() {
         let pitches = [];
         for (let inst = 0; inst < 8; inst++) {
           if (grid[inst][step]) {
-            pitches.push(midiMap[inst]);
+            // MIDIノート番号を 'C2' のような音符名に変換（ライブラリの仕様に合わせる）
+            const noteName = midiToNoteName(midiMap[inst]);
+            if (noteName) pitches.push(noteName);
           }
         }
 
         if (pitches.length > 0) {
-          let waitStr = waitSteps > 0 ? `T${waitSteps * 32}` : 0; // 16分音符 = 32ティック
-          const note = new window.MidiWriter.NoteEvent({
+          const noteOptions = {
             pitch: pitches,
             duration: '16',
-            wait: waitStr,
-            channel: 10, // ドラムチャンネル
+            channel: 10,
             velocity: 100
-          });
+          };
+          
+          if (waitSteps > 0) {
+            noteOptions.wait = `T${waitSteps * 32}`; // 休符の長さを設定
+          }
+
+          const note = new MidiWriter.NoteEvent(noteOptions);
           track.addEvent(note);
           waitSteps = 0;
         } else {
@@ -460,11 +461,9 @@ export default function App() {
         }
       }
 
-      const write = new window.MidiWriter.Writer(track);
-      const dataUri = write.dataUri();
+      const write = new MidiWriter.Writer(track);
       
-      // Data URIからBlob（バイナリデータ）への変換処理
-      // （ブラウザのセキュリティによる「Data URIの直接ダウンロードブロック」を回避するため）
+      const dataUri = write.dataUri();
       const base64Data = dataUri.split(',')[1];
       const binaryData = atob(base64Data);
       const uint8Array = new Uint8Array(binaryData.length);
@@ -475,7 +474,6 @@ export default function App() {
       const blob = new Blob([uint8Array], { type: 'audio/midi' });
       const blobUrl = URL.createObjectURL(blob);
       
-      // ダウンロードの実行
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = `drum-pattern-${bpm}bpm.mid`;
@@ -483,12 +481,11 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       
-      // メモリ解放
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
 
     } catch (e) {
       console.error("MIDI Export Error:", e);
-      alert("MIDIエクスポートに失敗しました。通信環境やブラウザの設定をご確認ください。");
+      alert(`MIDIエクスポートに失敗しました。\n詳細: ${e.message}`);
     } finally {
       setIsExporting(false);
     }
