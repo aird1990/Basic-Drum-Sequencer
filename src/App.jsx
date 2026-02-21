@@ -407,70 +407,88 @@ export default function App() {
     setSelectedPreset('custom');
   };
 
-  // --- MIDIダウンロード (MidiWriterJSを直接インポートする方式) ---
-  const downloadMIDI = async () => {
+  // --- MIDIダウンロード (外部ライブラリ非依存のカスタム実装) ---
+  const downloadMIDI = () => {
     if (isExporting) return;
     setIsExporting(true);
 
     try {
-      if (!window.MidiWriter) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/midi-writer-js@2.1.4/build/index.browser.min.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      }
+      // MIDIエンコード用ユーティリティ関数
+      const toVLQ = (value) => {
+        let buffer = [value & 0x7F];
+        while ((value >>= 7) > 0) {
+          buffer.unshift((value & 0x7F) | 0x80);
+        }
+        return buffer;
+      };
+      const writeString = (str) => str.split('').map(c => c.charCodeAt(0));
+      const write16 = (value) => [(value >> 8) & 0xFF, value & 0xFF];
+      const write32 = (value) => [(value >> 24) & 0xFF, (value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF];
 
-      const MidiWriter = window.MidiWriter;
-      if (!MidiWriter) throw new Error("MidiWriter could not be loaded.");
+      const timeBase = 480; 
+      const ticksPer16th = timeBase / 4; 
+      let trackEvents = [];
 
-      const track = new MidiWriter.Track();
-      track.setTimeSignature(4, 4);
-      track.setTempo(bpm);
+      // テンポイベント (BPMを設定)
+      const mpqn = Math.floor(60000000 / bpm);
+      trackEvents.push(
+        0x00, // Delta 0
+        0xFF, 0x51, 0x03, // Tempo Meta Event
+        (mpqn >> 16) & 0xFF, (mpqn >> 8) & 0xFF, mpqn & 0xFF
+      );
 
-      let waitSteps = 0;
+      let pendingDelta = 0;
+      
+      // グリッドデータからMIDIノートイベントを組み立てる
       for (let step = 0; step < 32; step++) {
-        let pitches = [];
+        let notesOn = [];
         for (let inst = 0; inst < 8; inst++) {
           if (grid[inst][step]) {
-            // MIDIノート番号を 'C2' のような音符名に変換（ライブラリの仕様に合わせる）
-            const noteName = midiToNoteName(midiMap[inst]);
-            if (noteName) pitches.push(noteName);
+            notesOn.push(midiMap[inst]);
           }
         }
 
-        if (pitches.length > 0) {
-          const noteOptions = {
-            pitch: pitches,
-            duration: '16',
-            channel: 10,
-            velocity: 100
-          };
+        if (notesOn.length > 0) {
+          // ノートオン
+          for (let i = 0; i < notesOn.length; i++) {
+            const delta = i === 0 ? pendingDelta : 0;
+            trackEvents.push(...toVLQ(delta));
+            trackEvents.push(0x99, notesOn[i], 100); // Ch 10 (Drum), Note, Velocity 100
+          }
           
-          if (waitSteps > 0) {
-            noteOptions.wait = `T${waitSteps * 32}`; // 休符の長さを設定
+          pendingDelta = 60; // ドラムなので短めに発音 (60 ticks)
+          
+          // ノートオフ
+          for (let i = 0; i < notesOn.length; i++) {
+            const delta = i === 0 ? pendingDelta : 0;
+            trackEvents.push(...toVLQ(delta));
+            trackEvents.push(0x89, notesOn[i], 0); // Ch 10 Note Off
           }
-
-          const note = new MidiWriter.NoteEvent(noteOptions);
-          track.addEvent(note);
-          waitSteps = 0;
+          
+          // 次の16分音符までの残りの時間を加算
+          pendingDelta = ticksPer16th - 60;
         } else {
-          waitSteps++;
+          pendingDelta += ticksPer16th;
         }
       }
 
-      const write = new MidiWriter.Writer(track);
-      
-      const dataUri = write.dataUri();
-      const base64Data = dataUri.split(',')[1];
-      const binaryData = atob(base64Data);
-      const uint8Array = new Uint8Array(binaryData.length);
-      for (let i = 0; i < binaryData.length; i++) {
-        uint8Array[i] = binaryData.charCodeAt(i);
-      }
-      
+      // トラック終了イベント
+      trackEvents.push(...toVLQ(pendingDelta), 0xFF, 0x2F, 0x00);
+
+      // MIDIファイルの全体構造を組み立てる (Format 0)
+      const midiData = [
+        ...writeString('MThd'), // ヘッダ
+        ...write32(6),
+        ...write16(0),
+        ...write16(1),
+        ...write16(timeBase),
+        ...writeString('MTrk'), // トラックデータ
+        ...write32(trackEvents.length),
+        ...trackEvents
+      ];
+
+      // バイナリデータ(Blob)化してダウンロード実行
+      const uint8Array = new Uint8Array(midiData);
       const blob = new Blob([uint8Array], { type: 'audio/midi' });
       const blobUrl = URL.createObjectURL(blob);
       
